@@ -3,31 +3,51 @@ import { searchNews } from '../services/news.service.js';
 import { toolSchemas } from './definitions.js';
 
 const handlers = {
-  async search_indicators({ query }) {
-    const results = await searchIndicators(query, 6);
-    if (results.length === 0) return { results: [], note: 'No matching indicators. Try different keywords.' };
-    return { results: results.map(({ id, name }) => ({ id, name })) };
-  },
+  async get_world_bank_data({ topic, indicator_id, country, from_year, to_year }) {
+    const countryWords = country.toLowerCase().split(/\s+/);
+    const query = topic
+      .split(/\s+/)
+      .filter((word) => !countryWords.includes(word.toLowerCase()))
+      .join(' ');
 
-  async get_indicator_data({ indicator_id, country, from_year, to_year }) {
-    const currentYear = new Date().getFullYear();
-    const toYear = to_year ?? currentYear;
+    const results = (await searchIndicators(query, 6)).map(({ id, name }) => ({ id, name }));
+    const candidates = indicator_id ? [{ id: indicator_id }, ...results] : results;
+    if (candidates.length === 0) return { available: false, note: 'No matching World Bank indicator. Try other keywords.' };
+
+    const toYear = to_year ?? new Date().getFullYear();
     const fromYear = from_year ?? toYear - 15;
 
-    const data = await getIndicatorData({ indicatorId: indicator_id, country, fromYear, toYear });
-    if (!data.available) return { available: false, note: data.message };
+    for (const match of candidates.slice(0, 3)) {
+      const data = await getIndicatorData({ indicatorId: match.id, country, fromYear, toYear }).catch(() => null);
+      if (!data?.available) continue;
 
-    const recentValues = data.values
-      .filter((row) => row.value !== null)
-      .slice(-8)
-      .map((row) => ({ year: row.year, value: Math.round(row.value * 100) / 100 }));
+      const recentValues = data.values
+        .filter((row) => row.value !== null)
+        .slice(-8)
+        .map((row) => ({ year: row.year, value: Math.round(row.value * 100) / 100 }));
 
-    return { indicator: data.indicator.name, country: data.country.name, values: recentValues };
+      return {
+        indicator_id: match.id,
+        indicator: data.indicator.name,
+        country: data.country.name,
+        values: recentValues,
+        other_matches: results.filter((result) => result.id !== match.id).slice(0, 4),
+      };
+    }
+
+    return {
+      available: false,
+      note: `The World Bank has no recent data on "${topic}" for ${country}.`,
+      other_matches: results.slice(0, 4),
+    };
   },
 
   async search_news({ query }) {
-    const articles = await searchNews(query);
-    if (articles.length === 0) return { articles: [], note: 'No articles found.' };
+    const fromDate = new Date();
+    fromDate.setFullYear(fromDate.getFullYear() - 2);
+
+    const articles = await searchNews(query, fromDate.toISOString().slice(0, 10));
+    if (articles.length === 0) return { articles: [], note: 'No recent articles found. Try different keywords.' };
     return {
       articles: articles.slice(0, 5).map((article) => ({
         title: article.title,
