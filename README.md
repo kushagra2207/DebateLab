@@ -67,6 +67,8 @@ We want to be clear about what does not work perfectly yet.
 
 3. **Free-tier limits.** Groq's free tier has rate limits, so the AI can be temporarily unavailable when busy. The app shows a message when this happens.
 
+4. **Garbage input is only handled by the prompt.** The app checks lengths, but accepts any motion of 10–300 characters, even one that is not a debatable statement (for example random text or a question). The opponent and the coach are told to point out nonsense motions and off-topic arguments instead of playing along, but nothing in the code enforces this. There is also no filter for offensive motions apart from the AI model's own safety rules.
+
 ## Privacy
 
 Your motion, arguments and notes are sent to Groq to generate the opponent's replies and the coach report. Your search terms are sent to the World Bank and The Guardian. The DebateLab backend itself stores nothing.
